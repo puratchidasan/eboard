@@ -33,7 +33,7 @@ export default function App() {
   const [windowKey, setWindowKey] = useState("24h");
 
   useEffect(() => {
-    fetch("/Consumption_data.csv")
+    fetch(`${import.meta.env.BASE_URL}Consumption_data.csv`)
       .then(res => res.text())
       .then(text => {
         const rows = text.split(/\r?\n/).filter(r => r.trim());
