@@ -26,11 +26,28 @@ const itemVariants = {
   visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
 };
 
+const maskCenter = (str) => {
+  if (!str) return "Loading...";
+  if (str.length <= 5) return "*****";
+  
+  const maskLength = 5;
+  const start = Math.floor((str.length - maskLength) / 2);
+  const end = start + maskLength;
+  
+  return str.substring(0, start) + "*****" + str.substring(end);
+};
+
 export default function App() {
   const [data, setData] = useState([]);
   const [metadata, setMetadata] = useState({});
   const [tariff, setTariff] = useState(0.25);
   const [windowKey, setWindowKey] = useState("24h");
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     fetch(`${import.meta.env.BASE_URL}Consumption_data.csv`)
@@ -153,7 +170,18 @@ export default function App() {
           <p className="text-slate-400 font-medium md:ml-[72px] text-lg">Actionable insights from your smart meter.</p>
         </div>
 
-        <div className="flex items-center gap-2 md:ml-0 glass-card p-1.5 rounded-2xl">
+        <div className="flex items-center mt-6 md:mt-0 glass-card p-1.5 rounded-2xl md:ml-0">
+          <div className="px-4 flex items-center gap-3 border-r border-white/10 mr-1">
+            <div className="text-right leading-tight">
+              <span className="block text-[9px] font-bold text-indigo-400 uppercase tracking-widest">
+                {currentTime.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+              </span>
+              <span className="block text-sm font-black text-white font-mono">
+                {currentTime.toLocaleTimeString()}
+              </span>
+            </div>
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+          </div>
           <Button variant="secondary" isActive={windowKey === "24h"} onClick={() => setWindowKey("24h")}><Calendar size={16} /> 24h</Button>
           <Button variant="secondary" isActive={windowKey === "7d"} onClick={() => setWindowKey("7d")}>7 Days</Button>
           <Button variant="secondary" isActive={windowKey === "30d"} onClick={() => setWindowKey("30d")}>30 Days</Button>
@@ -236,8 +264,8 @@ export default function App() {
           </Card>
         </motion.div>
 
-        <motion.div variants={itemVariants}>
-          <Card className="hover:border-purple-500/50 border-purple-500/20 bg-purple-500/5 transition-colors group">
+        <motion.div variants={itemVariants} className="lg:row-span-2 h-full">
+          <Card className="hover:border-purple-500/50 border-purple-500/20 bg-purple-500/5 transition-colors group h-full flex flex-col justify-between">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm font-semibold text-purple-300 mb-1 flex items-center gap-2">
@@ -274,16 +302,49 @@ export default function App() {
               </div>
           </Card>
         </motion.div>
+
+        {/* Meter Details Horizontal One-Liner */}
+        <motion.div variants={itemVariants} className="lg:col-span-3 h-full">
+          <Card className="flex flex-col sm:flex-row items-center justify-start h-full bg-slate-800/40 p-5 gap-8">
+            <div className="flex items-center gap-3 md:border-r border-white/10 pr-8 shrink-0">
+              <div className="p-2 bg-indigo-500/20 rounded-xl">
+                <Info size={20} className="text-indigo-400" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white leading-tight">Meter Details</h3>
+                <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-0.5">Hardware Info</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap sm:flex-nowrap items-center justify-start gap-8 sm:gap-12 lg:gap-16">
+              <div>
+                <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">EAN Number</span>
+                <span className="block text-slate-200 font-mono font-medium text-sm truncate" title={metadata.ean}>{metadata.ean ? maskCenter(metadata.ean) : "Loading..."}</span>
+              </div>
+              <div>
+                <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Meter ID</span>
+                <span className="block text-slate-200 font-mono font-medium text-sm truncate" title={metadata.meter}>{metadata.meter ? maskCenter(metadata.meter) : "Loading..."}</span>
+              </div>
+              <div>
+                <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Type</span>
+                <span className="block text-slate-200 font-medium text-sm truncate" title={metadata.type}>{metadata.type || "..."}</span>
+              </div>
+              <div>
+                <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Unit</span>
+                <span className="inline-flex items-center justify-center px-2 py-0.5 rounded bg-white/5 text-slate-200 font-medium text-sm border border-white/10">{metadata.unit || "..."}</span>
+              </div>
+            </div>
+          </Card>
+        </motion.div>
       </motion.div>
 
       <motion.div 
         variants={containerVariants}
         initial="hidden"
         animate="visible"
-        className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+        className="w-full mt-6"
       >
         {/* Main Chart Area */}
-        <motion.div variants={itemVariants} className="lg:col-span-2">
+        <motion.div variants={itemVariants} className="w-full">
           <Card className="h-full p-0 flex flex-col min-h-[480px]">
             <div className="p-6 md:p-8 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
@@ -344,59 +405,6 @@ export default function App() {
             </div>
           </Card>
         </motion.div>
-
-        {/* Meter Details Sidebar */}
-        <motion.div variants={itemVariants} className="h-full">
-          <Card className="flex flex-col h-full bg-gradient-to-b from-slate-900/80 to-slate-900/40">
-            <div className="mb-8 pb-6 border-b border-white/10">
-              <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                <Info size={20} className="text-indigo-400" /> Meter Details
-              </h3>
-              <p className="text-sm text-slate-400 font-medium mt-1">Hardware identifier and specifications</p>
-            </div>
-
-            <div className="space-y-4 flex-1">
-              <div className="bg-white/5 rounded-2xl p-5 border border-white/5 flex flex-col justify-center hover:bg-white/10 transition-colors">
-                <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-1.5 flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500/50" /> EAN Number
-                </span>
-                <span className="text-slate-200 font-mono font-medium text-lg truncate" title={metadata.ean}>{metadata.ean || "Loading..."}</span>
-              </div>
-              <div className="bg-white/5 rounded-2xl p-5 border border-white/5 flex flex-col justify-center hover:bg-white/10 transition-colors">
-                <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-1.5 flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500/50" /> Meter ID
-                </span>
-                <span className="text-slate-200 font-mono font-medium text-lg truncate" title={metadata.meter}>{metadata.meter || "Loading..."}</span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-white/5 rounded-2xl p-5 border border-white/5 flex flex-col justify-center hover:bg-white/10 transition-colors">
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-2">
-                    Type
-                  </span>
-                  <span className="text-slate-200 font-medium truncate" title={metadata.type}>{metadata.type || "..."}</span>
-                </div>
-                <div className="bg-white/5 rounded-2xl p-5 border border-white/5 flex flex-col justify-center hover:bg-white/10 transition-colors">
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-2">
-                    Unit
-                  </span>
-                  <span className="text-slate-200 font-medium truncate" title={metadata.unit}>{metadata.unit || "..."}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-8 pt-6 border-t border-white/10 flex items-center justify-center">
-              <div className="inline-flex items-center gap-2.5 px-4 py-2 bg-emerald-500/10 text-emerald-400 rounded-full text-sm font-bold border border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.15)] glow-text">
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                </span>
-                Live Connection Secure
-              </div>
-            </div>
-          </Card>
-        </motion.div>
-
       </motion.div>
     </div>
   );
