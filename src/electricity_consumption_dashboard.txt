@@ -1,0 +1,202 @@
+// Project Structure:
+// electricity-dashboard/
+// ├── public/
+// │   └── Consumption_data.csv
+// ├── src/
+// │   ├── components/
+// │   │   ├── Card.jsx
+// │   │   └── Button.jsx
+// │   ├── App.jsx
+// │   ├── main.jsx
+// │   └── styles.css
+// ├── index.html
+// ├── package.json
+// └── vite.config.js
+
+// =========================
+// src/styles.css
+// =========================
+body {
+  font-family: Arial, sans-serif;
+  background: #f5f6fa;
+  margin: 0;
+}
+
+.container {
+  padding: 20px;
+}
+
+.grid {
+  display: grid;
+  gap: 16px;
+}
+
+.grid-3 {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.card {
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.highlight {
+  border: 2px solid #007bff;
+}
+
+.button {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 8px;
+  background: black;
+  color: white;
+  cursor: pointer;
+}
+
+input {
+  padding: 6px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+// =========================
+// src/components/Card.jsx
+// =========================
+export const Card = ({ children, className }) => (
+  <div className={`card ${className || ""}`}>{children}</div>
+);
+
+// =========================
+// src/components/Button.jsx
+// =========================
+export const Button = ({ children, ...props }) => (
+  <button className="button" {...props}>{children}</button>
+);
+
+// =========================
+// src/App.jsx
+// =========================
+import { useEffect, useMemo, useState } from "react";
+import { Card } from "./components/Card";
+import { Button } from "./components/Button";
+import "./styles.css";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Brush } from "recharts";
+
+function mean(arr) { return arr.reduce((a,b)=>a+b,0)/(arr.length||1); }
+function std(arr) {
+  const m = mean(arr);
+  return Math.sqrt(mean(arr.map(x => (x-m)**2)));
+}
+
+export default function App() {
+  const [data, setData] = useState([]);
+  const [metadata, setMetadata] = useState({});
+  const [tariff, setTariff] = useState(0.25);
+  const [windowKey, setWindowKey] = useState("24h");
+
+  useEffect(() => {
+    fetch("/Consumption_data.csv")
+      .then(res => res.text())
+      .then(text => {
+        const rows = text.split("\n");
+
+        const header = rows[0].split(",");
+        setMetadata({
+          ean: header[0],
+          meter: header[1],
+          type: header[2],
+          unit: header[3]
+        });
+
+        const parsed = rows.slice(1).map(r => {
+          const c = r.split(",");
+          const ts = new Date(`${c[0]} ${c[1]}`);
+          return {
+            ts,
+            date: c[0],
+            time: c[1],
+            consumption: parseFloat(c[4]) || 0
+          };
+        }).filter(d => d.time);
+
+        setData(parsed);
+      });
+  }, []);
+
+  const filtered = useMemo(() => {
+    if (!data.length) return [];
+    const now = new Date(Math.max(...data.map(d=>d.ts)));
+    let from = new Date(now);
+    if (windowKey === "24h") from.setHours(from.getHours()-24);
+    if (windowKey === "7d") from.setDate(from.getDate()-7);
+    if (windowKey === "30d") from.setDate(from.getDate()-30);
+    return data.filter(d => d.ts >= from);
+  }, [data, windowKey]);
+
+  const values = filtered.map(d=>d.consumption);
+  const m = mean(values);
+  const s = std(values) || 1;
+
+  const total = values.reduce((a,b)=>a+b,0);
+  const avg = (total/(values.length||1)).toFixed(2);
+  const peak = Math.max(...values,0);
+  const cost = (total * tariff).toFixed(2);
+
+  const exportCSV = () => {
+    const blob = new Blob(["date,time,consumption\n" + filtered.map(d=>`${d.date},${d.time},${d.consumption}`).join("\n")]);
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "export.csv";
+    a.click();
+  };
+
+  return (
+    <div className="container grid">
+      <h2>Electricity Dashboard</h2>
+
+      <Card className="highlight">
+        <div className="grid grid-3">
+          <div>EAN: {metadata.ean}</div>
+          <div>Meter: {metadata.meter}</div>
+          <div>Type: {metadata.type}</div>
+          <div>Unit: {metadata.unit}</div>
+        </div>
+      </Card>
+
+      <div className="grid grid-3">
+        <Card>Total: {total} kWh</Card>
+        <Card>Avg: {avg}</Card>
+        <Card>Peak: {peak}</Card>
+        <Card>Cost: €{cost}</Card>
+      </div>
+
+      <div>
+        <Button onClick={()=>setWindowKey("24h")}>24h</Button>
+        <Button onClick={()=>setWindowKey("7d")}>7d</Button>
+        <Button onClick={()=>setWindowKey("30d")}>30d</Button>
+        <input type="number" value={tariff} onChange={e=>setTariff(+e.target.value)} />
+        <Button onClick={exportCSV}>Export CSV</Button>
+      </div>
+
+      <Card>
+        <ResponsiveContainer width="100%" height={300}>
+          <LineChart data={filtered}>
+            <XAxis dataKey="time" />
+            <YAxis />
+            <Tooltip />
+            <Line
+              dataKey="consumption"
+              dot={(p)=>{
+                const z=(p.payload.consumption-m)/s;
+                return Math.abs(z)>2.5 ? <circle cx={p.cx} cy={p.cy} r={4} fill="red"/> : null;
+              }}
+            />
+            <Brush dataKey="time" />
+          </LineChart>
+        </ResponsiveContainer>
+      </Card>
+    </div>
+  );
+}
